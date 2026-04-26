@@ -1,4 +1,5 @@
 mod cli;
+mod executor;
 mod parser;
 mod provider;
 
@@ -11,6 +12,6 @@ fn main() -> anyhow::Result<()> {
     let p = SopsProvider::new(args.file, args.format.into());
     let secret = p.load()?;
     let map = parser::parse(&secret, args.format)?;
-    eprintln!("parsed {} keys", map.len());
-    Ok(())
+    drop(secret);
+    match executor::exec(args.command, map)? {}
 }

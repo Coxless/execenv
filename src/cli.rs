@@ -2,7 +2,11 @@ use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-#[command(name = "execenv", version, about = "Decrypt encrypted config and exec a command with injected env vars")]
+#[command(
+    name = "execenv",
+    version,
+    about = "Decrypt encrypted config and exec a command with injected env vars"
+)]
 pub struct Cli {
     /// Secret source provider (MVP: sops only)
     #[arg(long, value_enum)]
