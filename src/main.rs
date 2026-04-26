@@ -1,4 +1,5 @@
 mod cli;
+mod parser;
 mod provider;
 
 use clap::Parser;
@@ -9,6 +10,7 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     let p = SopsProvider::new(args.file, args.format.into());
     let secret = p.load()?;
-    eprintln!("decrypted {} bytes", secret.len());
+    let map = parser::parse(&secret, args.format)?;
+    eprintln!("parsed {} keys", map.len());
     Ok(())
 }
