@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use std::path::PathBuf;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::cli::Format;
 
@@ -60,12 +60,20 @@ impl Provider for SopsProvider {
                 _ => anyhow::Error::new(e).context("failed to spawn sops"),
             })?;
 
+        let stderr = Zeroizing::new(output.stderr);
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("sops exited with {}: {}", output.status, stderr.trim());
+            let stderr_msg = String::from_utf8_lossy(&stderr);
+            anyhow::bail!("sops exited with {}: {}", output.status, stderr_msg.trim());
         }
 
-        let s = String::from_utf8(output.stdout).context("sops output was not valid UTF-8")?;
+        let s = match String::from_utf8(output.stdout) {
+            Ok(s) => s,
+            Err(e) => {
+                let mut bytes = e.into_bytes();
+                bytes.zeroize();
+                anyhow::bail!("sops output was not valid UTF-8");
+            }
+        };
         Ok(Zeroizing::new(s))
     }
 }

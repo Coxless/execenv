@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use nix::unistd::execvpe;
+use zeroize::Zeroizing;
 
-pub fn exec(command: Vec<String>, env: HashMap<String, String>) -> Result<Infallible> {
+pub fn exec(command: Vec<String>, env: HashMap<String, Zeroizing<String>>) -> Result<Infallible> {
     debug_assert!(
         !command.is_empty(),
         "cli layer must enforce non-empty command"
@@ -21,13 +22,32 @@ pub fn exec(command: Vec<String>, env: HashMap<String, String>) -> Result<Infall
         })
         .collect::<Result<_>>()?;
 
-    let envp: Vec<CString> = env
-        .into_iter()
-        .map(|(k, v)| {
-            CString::new(format!("{k}={v}"))
-                .with_context(|| format!("env var `{k}` contains an interior NUL byte"))
+    // Build zeroized KEY=VALUE\0 byte buffers so plaintext is wiped on drop
+    // if execvpe returns an error.
+    let mut envp_bufs: Vec<Zeroizing<Vec<u8>>> = Vec::with_capacity(env.len());
+    for (k, v) in &env {
+        if k.contains('=') {
+            return Err(anyhow!("env var key `{k}` contains '='"));
+        }
+        if k.as_bytes().contains(&0u8) || v.as_bytes().contains(&0u8) {
+            return Err(anyhow!("env var `{k}` contains an interior NUL byte"));
+        }
+        let mut buf: Vec<u8> = Vec::with_capacity(k.len() + v.len() + 2);
+        buf.extend_from_slice(k.as_bytes());
+        buf.push(b'=');
+        buf.extend_from_slice(v.as_bytes());
+        buf.push(0);
+        envp_bufs.push(Zeroizing::new(buf));
+    }
+    drop(env);
+
+    let envp: Vec<&CStr> = envp_bufs
+        .iter()
+        .map(|buf| {
+            // Safety invariant: we validated no interior NULs and appended exactly one.
+            CStr::from_bytes_with_nul(buf).expect("buf has exactly one terminal NUL")
         })
-        .collect::<Result<_>>()?;
+        .collect();
 
     execvpe(&argv[0], &argv, &envp).with_context(|| format!("failed to exec `{program}`"))
 }

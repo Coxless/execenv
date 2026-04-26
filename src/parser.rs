@@ -2,29 +2,31 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 use anyhow::{Context, Result};
+use zeroize::Zeroizing;
 
 use crate::cli::Format;
 
-pub fn parse(input: &str, format: Format) -> Result<HashMap<String, String>> {
+pub fn parse(input: &str, format: Format) -> Result<HashMap<String, Zeroizing<String>>> {
     match format {
         Format::Dotenv => parse_dotenv(input),
         Format::Json => parse_json(input),
     }
 }
 
-pub fn parse_dotenv(input: &str) -> Result<HashMap<String, String>> {
+pub fn parse_dotenv(input: &str) -> Result<HashMap<String, Zeroizing<String>>> {
     let mut map = HashMap::new();
     let iter = dotenvy::from_read_iter(Cursor::new(input.as_bytes()));
     for item in iter {
         let (k, v) = item.context("failed to parse dotenv")?;
-        map.insert(k, v);
+        map.insert(k, Zeroizing::new(v));
     }
     Ok(map)
 }
 
-pub fn parse_json(input: &str) -> Result<HashMap<String, String>> {
-    serde_json::from_str::<HashMap<String, String>>(input)
-        .context("failed to parse json (only flat string values are supported)")
+pub fn parse_json(input: &str) -> Result<HashMap<String, Zeroizing<String>>> {
+    let raw: HashMap<String, String> = serde_json::from_str(input)
+        .context("failed to parse json (only flat string values are supported)")?;
+    Ok(raw.into_iter().map(|(k, v)| (k, Zeroizing::new(v))).collect())
 }
 
 #[cfg(test)]
@@ -36,7 +38,7 @@ mod tests {
     #[test]
     fn dotenv_simple() {
         let map = parse_dotenv("KEY=value\n").unwrap();
-        assert_eq!(map["KEY"], "value");
+        assert_eq!(map["KEY"].as_str(), "value");
     }
 
     #[test]
@@ -44,31 +46,31 @@ mod tests {
         let input = "# comment\n\nFOO=bar\n";
         let map = parse_dotenv(input).unwrap();
         assert_eq!(map.len(), 1);
-        assert_eq!(map["FOO"], "bar");
+        assert_eq!(map["FOO"].as_str(), "bar");
     }
 
     #[test]
     fn dotenv_double_quoted_value() {
         let map = parse_dotenv("KEY=\"hello world\"\n").unwrap();
-        assert_eq!(map["KEY"], "hello world");
+        assert_eq!(map["KEY"].as_str(), "hello world");
     }
 
     #[test]
     fn dotenv_single_quoted_value() {
         let map = parse_dotenv("KEY='hello world'\n").unwrap();
-        assert_eq!(map["KEY"], "hello world");
+        assert_eq!(map["KEY"].as_str(), "hello world");
     }
 
     #[test]
     fn dotenv_equals_in_value() {
         let map = parse_dotenv("URL=postgres://u:p@h/db?x=1\n").unwrap();
-        assert_eq!(map["URL"], "postgres://u:p@h/db?x=1");
+        assert_eq!(map["URL"].as_str(), "postgres://u:p@h/db?x=1");
     }
 
     #[test]
     fn dotenv_last_value_wins_on_duplicate_key() {
         let map = parse_dotenv("K=first\nK=second\n").unwrap();
-        assert_eq!(map["K"], "second");
+        assert_eq!(map["K"].as_str(), "second");
     }
 
     #[test]
@@ -82,8 +84,8 @@ mod tests {
     fn json_flat_object() {
         let map = parse_json(r#"{"A":"1","B":"2"}"#).unwrap();
         assert_eq!(map.len(), 2);
-        assert_eq!(map["A"], "1");
-        assert_eq!(map["B"], "2");
+        assert_eq!(map["A"].as_str(), "1");
+        assert_eq!(map["B"].as_str(), "2");
     }
 
     #[test]
