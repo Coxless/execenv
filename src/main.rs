@@ -1,3 +1,9 @@
+mod cli;
+
+use clap::Parser;
+use cli::Cli;
+
 fn main() {
-    println!("execenv: not yet implemented");
+    let args = Cli::parse();
+    eprintln!("{:?}", args);
 }
