@@ -14,7 +14,13 @@ execenv は子プロセスをスポーンするのではなく、自身を置き
 
 ## インストール
 
-ソースからビルド（Rust 1.93 以上が必要）:
+**npm 経由**（Linux x64 のみ。`sops` が PATH に必要）:
+
+```bash
+npm install -g execenv
+```
+
+**ソースからビルド**（Rust 1.93 以上が必要）:
 
 ```bash
 cargo build --release
