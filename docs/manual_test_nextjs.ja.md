@@ -1,6 +1,8 @@
 # Next.js プロジェクトでの手動テスト手順
 
-`execenv` を既存の Next.js プロジェクトに接続し、秘密情報が正しくアプリへ渡ることをローカルで確認するための手順書です。
+`execenv` をリポジトリ内の `manual-test/` Next.js プロジェクトに接続し、秘密情報が正しくアプリへ渡ることをローカルで確認するための手順書です。
+
+`manual-test/` は App Router + TypeScript + Tailwind 4 構成で、`app/components/ServerEnvDisplay.tsx` が `TEST_ENV` と `NEXT_PUBLIC_TEST_ENV` の両方をページに表示します。依存関係は `pnpm` で管理し、ツールバージョンは `manual-test/.mise.toml` で固定されています（node 24.14.1 / pnpm 10.21.0）。
 
 ## 前提条件
 
@@ -8,12 +10,12 @@
 |---|---|
 | `sops` v3.x | `sops --version` |
 | `age` / `age-keygen` | `age-keygen --version` |
-| Node.js（mise / nvm / system いずれでも可） | `node --version` |
+| `pnpm` (mise 経由) | `cd manual-test && pnpm --version` |
 | `execenv` バイナリ | `execenv --help` |
 
 ```bash
-# execenv を PATH に入れる（ビルド済みであれば）
-cargo install --path /path/to/execenv
+# execenv をビルドして PATH に入れる（リポジトリルートで）
+cargo install --path .
 ```
 
 > **注意:** `sops` と `age` のインストール手順は [README.ja.md](../README.ja.md) の「SOPS + age のセットアップ」を参照してください。
@@ -25,87 +27,71 @@ cargo install --path /path/to/execenv
 以下のコマンドで鍵ファイルを生成し、環境変数をセットします（既に鍵がある場合はスキップ）。
 
 ```bash
-age-keygen -o ~/.config/sops/age/keys.txt
+cd manual-test
+
+age-keygen -o ./keys.txt
 
 # 復号用（ローカル開発）
-export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+export SOPS_AGE_KEY_FILE=./keys.txt
 
 # 暗号化用
-export SOPS_AGE_RECIPIENTS=$(grep 'public key' ~/.config/sops/age/keys.txt | cut -d' ' -f4)
+export SOPS_AGE_RECIPIENTS=$(grep 'public key' ./keys.txt | cut -d' ' -f4)
 ```
 
 ---
 
-## 2. Next.js 用 `.env` の作成
+## 2. `manual-test/.env` の確認と PATH 追加
 
-検証対象の Next.js プロジェクト直下に `.env` を作成します。
+`manual-test/.env` にはテスト用の値がすでに用意されています。
 
 ```dotenv
-# サーバー専用シークレット（process.env で参照。クライアントには漏れない）
-MY_SECRET=hello-from-execenv
-
-# クライアントに到達する変数（NEXT_PUBLIC_ プレフィックスはビルド時に静的展開される）
-NEXT_PUBLIC_API_BASE=https://api.example.test
-
-# execenv は親シェルの PATH を引き継がない。
-# next / node / npx を解決するために、自前で PATH を含める。
-PATH=/usr/local/bin:/usr/bin:/bin
+NEXT_PUBLIC_TEST_ENV="Test value1"
+TEST_ENV="Test value2"
 ```
 
-### PATH について
+`execenv` はこのファイルに書かれた変数のみを `execve` に渡し、親シェルの `PATH` は一切引き継ぎません（`src/executor.rs` の設計上の仕様）。`next` / `node` を解決するために `PATH` 行を追加してください。
 
-`execenv` は暗号化ファイルに書かれた変数のみを `execve` に渡します。親シェルの `PATH` は一切引き継ぎません（`src/executor.rs` の設計上の仕様）。Next.js の `next` コマンドは `node_modules/.bin/` にあるため、`PATH` に Node.js の bin ディレクトリを含めないと起動に失敗します。
+```dotenv
+NEXT_PUBLIC_TEST_ENV="Test value1"
+TEST_ENV="Test value2"
+PATH=/home/youruser/.local/share/mise/installs/node/24.14.1/bin:/usr/local/bin:/usr/bin:/bin
+```
 
-**mise 利用時の例:**
+mise で管理している Node.js バイナリの実パスは以下で確認できます。
 
 ```bash
-# mise が管理している node のパスを確認
+cd manual-test
 mise which node
-# 例: /home/youruser/.local/share/mise/installs/node/22.19.0/bin/node
+# 例: /home/youruser/.local/share/mise/installs/node/24.14.1/bin/node
+# → PATH には末尾の /node を除いた bin/ ディレクトリを指定する
 ```
 
-`.env` の `PATH` をそのディレクトリに合わせてください:
-
-```dotenv
-PATH=/home/youruser/.local/share/mise/installs/node/22.19.0/bin:/usr/local/bin:/usr/bin:/bin
-```
-
-**nvm 利用時の例:**
-
-```dotenv
-PATH=/home/youruser/.nvm/versions/node/v22.19.0/bin:/usr/local/bin:/usr/bin:/bin
-```
-
-### `.gitignore` の確認
-
-```bash
-# .env は gitignore に入れる（平文シークレットをコミットしない）
-echo '.env' >> .gitignore
-```
+> **`.gitignore` について:** `*.env.enc` はリポジトリルートの `.gitignore` で無視済みです。`.env` はテスト用ダミー値のみのためコミット対象ですが、実際のシークレットを書いた場合はコミットしないでください。
 
 ---
 
 ## 3. `.env.enc` の作成
 
 ```bash
+cd manual-test
 sops --encrypt --input-type dotenv --output-type dotenv .env > .env.enc
 ```
 
 > **注意:** プロジェクトルートに `.sops.yaml` が存在する場合、そこで定義された暗号化ルールが適用されます。意図しない設定が当たる場合は、`sops` の `--age` フラグで明示的に指定するか、`.sops.yaml` を確認してください。
 
-`.env.enc` のみをリポジトリにコミットし、`.env` は絶対にコミットしないでください。
-
 ---
 
 ## 4. `execenv` 経由で `next dev` を起動
 
+```bash
+cd manual-test
+```
+
 以下の 3 形式のうち、環境に合ったものを使ってください。
 
-| 形式 | コマンド | 用途 |
-|---|---|---|
-| **A. npx 経由（推奨）** | `execenv --provider sops --file .env.enc -- npx next dev` | PATH に node が入っていれば `npx` が `next` を解決 |
-| **B. 相対パス直叩き** | `execenv --provider sops --file .env.enc -- ./node_modules/.bin/next dev` | node が PATH 不要で最小構成 |
-| **C. node コマンド経由** | `execenv --provider sops --file .env.enc -- node node_modules/next/dist/bin/next dev` | A・B が動かない場合のフォールバック |
+```bash
+execenv --provider sops --file .env.enc -- pnpm dev
+```
 
 正常起動すると `next dev` のログが流れます。`execenv` プロセス自体は `execve` によって `next` プロセスに置き換わっているため、起動後は PID として残りません。
 
@@ -125,15 +111,26 @@ no key could decrypt the data
 
 ## 5. 検証手順
 
-### 5-1. サーバー側：`process.env.MY_SECRET` の到達確認
+### 5-1. ページでの確認（推奨）
 
-Next.js プロジェクトに以下のファイルを **一時的に** 追加します（App Router 想定）。
+`http://localhost:3000` を開くと、`ServerEnvDisplay` コンポーネントが `.env.enc` から注入された値をページに表示します。
+
+| 表示項目 | 期待値 |
+|---|---|
+| `NEXT_PUBLIC_TEST_ENV` | `.env.enc` に書いた値（例: `Test value1`） |
+| `TEST_ENV` | `.env.enc` に書いた値（例: `Test value2`） |
+
+`(undefined)` と表示された場合は、該当する変数が `execenv` 経由で渡っていません。セクション 2 の `.env` と `.env.enc` を見直してください。
+
+### 5-2. サーバー側：API エンドポイントで確認
+
+`TEST_ENV` をより明示的に検証したい場合は、以下のファイルを **一時的に** 追加します。
 
 **`app/api/check/route.ts`:**
 
 ```ts
 export async function GET() {
-  return Response.json({ secret: process.env.MY_SECRET ?? null });
+  return Response.json({ testEnv: process.env.TEST_ENV ?? null });
 }
 ```
 
@@ -141,40 +138,13 @@ export async function GET() {
 
 ```bash
 curl http://localhost:3000/api/check
-# 期待値: {"secret":"hello-from-execenv"}
+# 期待値: {"testEnv":"Test value2"}
 ```
 
 > 確認が終わったらこのファイルを削除してください。シークレット値を API 経由で公開したままにしないでください。
 
-### 5-2. クライアント側：`NEXT_PUBLIC_API_BASE` のバンドル到達確認
+### 5-3. クライアント側：`NEXT_PUBLIC_TEST_ENV` のバンドル到達確認
 
-`app/page.tsx`（または任意のページ）に以下を **一時的に** 追加します。
+`NEXT_PUBLIC_TEST_ENV` は `ServerEnvDisplay` でページに表示されるため、追加ファイルは不要です。ブラウザで表示を確認するだけで十分です。
 
-```tsx
-<p data-testid="api-base">{process.env.NEXT_PUBLIC_API_BASE}</p>
-```
-
-ブラウザで `http://localhost:3000` を開き、`https://api.example.test` が表示されることを確認します。
-
-または curl でも確認できます:
-
-```bash
-curl -s http://localhost:3000 | grep api-base
-# 期待値: <p data-testid="api-base">https://api.example.test</p>
-```
-
-> **重要:** `NEXT_PUBLIC_*` 変数はビルド時（`next dev` の初回コンパイル時を含む）に JavaScript バンドルへ静的展開されます。`.env.enc` の値を変更した場合は `execenv ... -- npx next dev` を再起動してください。HMR（ホットリロード）では追従しません。
-
-> 確認が終わったら追加した `<p>` タグを削除してください。
-
----
-
-## トラブルシューティング
-
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| `command not found: next` / `npx` | `.env` の `PATH` に node が無い | `mise which node` などで実パスを確認し `.env` の `PATH` を更新 |
-| `no key could decrypt the data` | `SOPS_AGE_KEY_FILE` 未設定 | `export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt` |
-| クライアント側で値が `undefined` | `NEXT_PUBLIC_` プレフィックス忘れ、または再起動が必要 | プレフィックスを確認 → dev サーバを再起動 |
-| `failed to exec ...` (execenv 起動直後) | NUL バイトや `=` を含む不正なキー名 | 平文の `.env` を見直して再暗号化 |
-| ページには表示されるが API では `null` | `NEXT_PUBLIC_` が付いており Server Component ではアクセス可 | `NEXT_PUBLIC_` プレフィックス無しのキーを別途 `.env` に追加 |
+> **重要:** `NEXT_PUBLIC_*` 変数はビルド時（`next dev` の初回コンパイル時を含む）に JavaScript バンドルへ静的展開されます。`.env.enc` の値を変更した場合は dev サーバーを再起動してください。HMR（ホットリロード）では追従しません。
