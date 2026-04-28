@@ -5,7 +5,7 @@ Decrypt a SOPS-encrypted config file in memory and hand off to your command via 
 ## Install
 
 ```bash
-npm install -g execenv
+npm install -g @coxless/execenv
 ```
 
 Requires:
