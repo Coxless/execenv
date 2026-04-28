@@ -4,3 +4,4 @@
 *.age
 manual-test/node_modules/
 manual-test/.next/
+npm/execenv/bin/execenv

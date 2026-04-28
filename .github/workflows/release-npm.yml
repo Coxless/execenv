@@ -1,0 +1,66 @@
+name: Release to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no actual publish)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write  # required for npm --provenance
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.93.0"
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build linux-x64 release binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Stage binary into npm package
+        run: |
+          cp target/x86_64-unknown-linux-gnu/release/execenv npm/execenv/bin/execenv
+          chmod 0755 npm/execenv/bin/execenv
+
+      - name: Sync version from Cargo.toml into package.json
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "execenv") | .version')
+          echo "Publishing version: $VERSION"
+          jq --arg v "$VERSION" '.version = $v' \
+            npm/execenv/package.json > /tmp/pkg.json \
+            && mv /tmp/pkg.json npm/execenv/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish execenv
+        working-directory: npm/execenv
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            npm publish --dry-run --access public
+          else
+            npm publish --provenance --access public
+          fi

@@ -16,14 +16,20 @@ the plaintext is gone the moment your app starts.
 
 ## Install
 
-Build from source (requires Rust 1.93+):
+**Via npm** (Linux x64; requires `sops` on PATH):
+
+```bash
+npm install -g execenv
+```
+
+**From source** (requires Rust 1.93+):
 
 ```bash
 cargo build --release
 # binary: target/release/execenv
 ```
 
-Or install directly:
+Or:
 
 ```bash
 cargo install --path .

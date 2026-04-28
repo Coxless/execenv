@@ -1,0 +1,22 @@
+{
+  "name": "execenv",
+  "version": "0.1.0",
+  "description": "Decrypt SOPS-encrypted config in memory and exec your command with injected env vars",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Coxless/execenv.git"
+  },
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "bin": {
+    "execenv": "bin/execenv"
+  },
+  "files": [
+    "bin/execenv",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
