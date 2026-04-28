@@ -20,6 +20,10 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = Format::Dotenv)]
     pub format: Format,
 
+    /// Drop the parent process's environment; only pass decrypted vars to the child
+    #[arg(long)]
+    pub clean_env: bool,
+
     /// Command to execute with injected env vars (everything after --)
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true, num_args = 1..)]
     pub command: Vec<String>,

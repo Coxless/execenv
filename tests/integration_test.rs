@@ -37,7 +37,7 @@ fn decrypts_and_execs_dotenv() {
     }
     let fx = make_fixture("FOO=bar\nPATH=/usr/bin:/bin\n", "dotenv");
     execenv_cmd(&fx)
-        .args(["--provider", "sops", "--file"])
+        .args(["--clean-env", "--provider", "sops", "--file"])
         .arg(&fx.enc_path)
         .args(["--", "/usr/bin/env"])
         .assert()
@@ -53,7 +53,7 @@ fn decrypts_and_execs_json() {
     }
     let fx = make_fixture(r#"{"FOO":"bar","PATH":"/usr/bin:/bin"}"#, "json");
     execenv_cmd(&fx)
-        .args(["--provider", "sops", "--file"])
+        .args(["--clean-env", "--provider", "sops", "--file"])
         .arg(&fx.enc_path)
         .args(["--format", "json", "--", "/usr/bin/env"])
         .assert()
@@ -68,10 +68,7 @@ fn secret_value_does_not_leak_to_stderr() {
         return;
     }
     let secret = "correct-horse-battery-staple";
-    let fx = make_fixture(
-        &format!("EXECENV_TEST_SECRET={secret}\nPATH=/usr/bin:/bin\n"),
-        "dotenv",
-    );
+    let fx = make_fixture(&format!("EXECENV_TEST_SECRET={secret}\n"), "dotenv");
     let output = execenv_cmd(&fx)
         .args(["--provider", "sops", "--file"])
         .arg(&fx.enc_path)
@@ -145,4 +142,52 @@ fn wrong_age_key_errors() {
         !stderr.contains(secret),
         "plaintext leaked to stderr on decryption error: {stderr}"
     );
+}
+
+#[test]
+fn default_inherits_parent_env() {
+    if !require_e2e_or_skip("default_inherits_parent_env") {
+        return;
+    }
+    let fx = make_fixture("EXECENV_TEST_VAR=hello\n", "dotenv");
+    execenv_cmd(&fx)
+        .args(["--provider", "sops", "--file"])
+        .arg(&fx.enc_path)
+        .args(["--", "/usr/bin/env"])
+        .assert()
+        .success()
+        .stdout(contains("EXECENV_TEST_VAR=hello"))
+        .stdout(contains("HOME="));
+}
+
+#[test]
+fn decrypted_value_wins_over_parent_env() {
+    if !require_e2e_or_skip("decrypted_value_wins_over_parent_env") {
+        return;
+    }
+    let fx = make_fixture("EXECENV_TEST_OVERRIDE=decrypted\n", "dotenv");
+    execenv_cmd(&fx)
+        .env("EXECENV_TEST_OVERRIDE", "parent")
+        .args(["--provider", "sops", "--file"])
+        .arg(&fx.enc_path)
+        .args(["--", "/usr/bin/env"])
+        .assert()
+        .success()
+        .stdout(contains("EXECENV_TEST_OVERRIDE=decrypted"))
+        .stdout(contains("EXECENV_TEST_OVERRIDE=parent").not());
+}
+
+#[test]
+fn clean_env_drops_parent_env() {
+    if !require_e2e_or_skip("clean_env_drops_parent_env") {
+        return;
+    }
+    let fx = make_fixture("PATH=/usr/bin:/bin\n", "dotenv");
+    execenv_cmd(&fx)
+        .args(["--clean-env", "--provider", "sops", "--file"])
+        .arg(&fx.enc_path)
+        .args(["--", "/usr/bin/env"])
+        .assert()
+        .success()
+        .stdout(contains("HOME=").not());
 }

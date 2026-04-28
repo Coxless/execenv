@@ -6,7 +6,11 @@ use anyhow::{anyhow, Context, Result};
 use nix::unistd::execvpe;
 use zeroize::Zeroizing;
 
-pub fn exec(command: Vec<String>, env: HashMap<String, Zeroizing<String>>) -> Result<Infallible> {
+pub fn exec(
+    command: Vec<String>,
+    env: HashMap<String, Zeroizing<String>>,
+    inherit_parent_env: bool,
+) -> Result<Infallible> {
     debug_assert!(
         !command.is_empty(),
         "cli layer must enforce non-empty command"
@@ -22,10 +26,28 @@ pub fn exec(command: Vec<String>, env: HashMap<String, Zeroizing<String>>) -> Re
         })
         .collect::<Result<_>>()?;
 
+    // Merge: start with parent env (if inherited), then overlay decrypted vars.
+    // Decrypted values always win on key conflicts.
+    let merged: HashMap<String, Zeroizing<String>> = if inherit_parent_env {
+        let mut base: HashMap<String, Zeroizing<String>> = std::env::vars_os()
+            .filter_map(|(k, v)| {
+                let k = k.into_string().ok()?;
+                let v = v.into_string().ok()?;
+                Some((k, Zeroizing::new(v)))
+            })
+            .collect();
+        for (k, v) in env {
+            base.insert(k, v);
+        }
+        base
+    } else {
+        env
+    };
+
     // Build zeroized KEY=VALUE\0 byte buffers so plaintext is wiped on drop
     // if execvpe returns an error.
-    let mut envp_bufs: Vec<Zeroizing<Vec<u8>>> = Vec::with_capacity(env.len());
-    for (k, v) in &env {
+    let mut envp_bufs: Vec<Zeroizing<Vec<u8>>> = Vec::with_capacity(merged.len());
+    for (k, v) in &merged {
         if k.contains('=') {
             return Err(anyhow!("env var key `{k}` contains '='"));
         }
@@ -39,7 +61,7 @@ pub fn exec(command: Vec<String>, env: HashMap<String, Zeroizing<String>>) -> Re
         buf.push(0);
         envp_bufs.push(Zeroizing::new(buf));
     }
-    drop(env);
+    drop(merged);
 
     let envp: Vec<&CStr> = envp_bufs
         .iter()

@@ -26,5 +26,5 @@ fn main() -> anyhow::Result<()> {
     let secret = p.load()?;
     let map = parser::parse(&secret, args.format)?;
     drop(secret);
-    match executor::exec(args.command, map)? {}
+    match executor::exec(args.command, map, !args.clean_env)? {}
 }
