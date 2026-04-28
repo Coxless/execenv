@@ -3,3 +3,5 @@
 .DS_Store
 *.env.enc
 *.age
+manual-test/node_modules/
+manual-test/.next/
