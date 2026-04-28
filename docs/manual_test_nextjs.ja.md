@@ -27,13 +27,15 @@ cargo install --path .
 以下のコマンドで鍵ファイルを生成し、環境変数をセットします（既に鍵がある場合はスキップ）。
 
 ```bash
-age-keygen -o ~/.config/sops/age/keys.txt
+cd manual-test
+
+age-keygen -o ./keys.txt
 
 # 復号用（ローカル開発）
-export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+export SOPS_AGE_KEY_FILE=./keys.txt
 
 # 暗号化用
-export SOPS_AGE_RECIPIENTS=$(grep 'public key' ~/.config/sops/age/keys.txt | cut -d' ' -f4)
+export SOPS_AGE_RECIPIENTS=$(grep 'public key' ./keys.txt | cut -d' ' -f4)
 ```
 
 ---
@@ -77,8 +79,6 @@ sops --encrypt --input-type dotenv --output-type dotenv .env > .env.enc
 
 > **注意:** プロジェクトルートに `.sops.yaml` が存在する場合、そこで定義された暗号化ルールが適用されます。意図しない設定が当たる場合は、`sops` の `--age` フラグで明示的に指定するか、`.sops.yaml` を確認してください。
 
-`.env.enc` のみをリポジトリにコミットし、`.env` は絶対にコミットしないでください。
-
 ---
 
 ## 4. `execenv` 経由で `next dev` を起動
@@ -89,11 +89,9 @@ cd manual-test
 
 以下の 3 形式のうち、環境に合ったものを使ってください。
 
-| 形式 | コマンド | 用途 |
-|---|---|---|
-| **A. npx 経由（推奨）** | `execenv --provider sops --file .env.enc -- npx next dev` | PATH に node が入っていれば `npx` が `next` を解決 |
-| **B. 相対パス直叩き** | `execenv --provider sops --file .env.enc -- ./node_modules/.bin/next dev` | node が PATH 不要で最小構成 |
-| **C. node コマンド経由** | `execenv --provider sops --file .env.enc -- node node_modules/next/dist/bin/next dev` | A・B が動かない場合のフォールバック |
+```bash
+execenv --provider sops --file .env.enc -- pnpm dev
+```
 
 正常起動すると `next dev` のログが流れます。`execenv` プロセス自体は `execve` によって `next` プロセスに置き換わっているため、起動後は PID として残りません。
 
@@ -150,15 +148,3 @@ curl http://localhost:3000/api/check
 `NEXT_PUBLIC_TEST_ENV` は `ServerEnvDisplay` でページに表示されるため、追加ファイルは不要です。ブラウザで表示を確認するだけで十分です。
 
 > **重要:** `NEXT_PUBLIC_*` 変数はビルド時（`next dev` の初回コンパイル時を含む）に JavaScript バンドルへ静的展開されます。`.env.enc` の値を変更した場合は dev サーバーを再起動してください。HMR（ホットリロード）では追従しません。
-
----
-
-## トラブルシューティング
-
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| `command not found: next` / `npx` | `.env` の `PATH` に node が無い | `cd manual-test && mise which node` で実パスを確認し `.env` の `PATH` を更新 |
-| `no key could decrypt the data` | `SOPS_AGE_KEY_FILE` 未設定 | `export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt` |
-| 画面に `(undefined)` と表示される | 変数が渡っていない、または再起動が必要 | `.env.enc` を再確認 → dev サーバを再起動 |
-| `NEXT_PUBLIC_TEST_ENV` が `undefined` | `NEXT_PUBLIC_` プレフィックス忘れ、または再起動が必要 | プレフィックスを確認 → dev サーバを再起動 |
-| `failed to exec ...` (execenv 起動直後) | NUL バイトや `=` を含む不正なキー名 | 平文の `.env` を見直して再暗号化 |
