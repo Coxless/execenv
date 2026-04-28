@@ -8,44 +8,23 @@ pub trait Provider {
     fn load(&self) -> Result<Zeroizing<String>>;
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum SopsFormat {
-    Dotenv,
-    Json,
-}
-
-impl SopsFormat {
-    fn as_str(self) -> &'static str {
-        match self {
-            SopsFormat::Dotenv => "dotenv",
-            SopsFormat::Json => "json",
-        }
-    }
-}
-
-impl From<Format> for SopsFormat {
-    fn from(f: Format) -> Self {
-        match f {
-            Format::Dotenv => SopsFormat::Dotenv,
-            Format::Json => SopsFormat::Json,
-        }
-    }
-}
-
 pub struct SopsProvider {
     file: PathBuf,
-    format: SopsFormat,
+    format: Format,
 }
 
 impl SopsProvider {
-    pub fn new(file: PathBuf, format: SopsFormat) -> Self {
+    pub fn new(file: PathBuf, format: Format) -> Self {
         Self { file, format }
     }
 }
 
 impl Provider for SopsProvider {
     fn load(&self) -> Result<Zeroizing<String>> {
-        let fmt = self.format.as_str();
+        let fmt = match self.format {
+            Format::Dotenv => "dotenv",
+            Format::Json => "json",
+        };
 
         let output = std::process::Command::new("sops")
             .arg("--decrypt")
