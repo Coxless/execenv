@@ -22,7 +22,7 @@ fn harden_process() {}
 fn main() -> anyhow::Result<()> {
     harden_process();
     let args = Cli::parse();
-    let p = SopsProvider::new(args.file, args.format.into());
+    let p = SopsProvider::new(args.file, args.format);
     let secret = p.load()?;
     let map = parser::parse(&secret, args.format)?;
     drop(secret);
