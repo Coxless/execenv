@@ -17,7 +17,7 @@ execenv は子プロセスをスポーンするのではなく、自身を置き
 **npm 経由**（Linux x64 のみ。`sops` が PATH に必要）:
 
 ```bash
-npm install -g execenv
+npm install -g @coxless/execenv
 ```
 
 **ソースからビルド**（Rust 1.93 以上が必要）:

@@ -19,7 +19,7 @@ the plaintext is gone the moment your app starts.
 **Via npm** (Linux x64; requires `sops` on PATH):
 
 ```bash
-npm install -g execenv
+npm install -g @coxless/execenv
 ```
 
 **From source** (requires Rust 1.93+):
