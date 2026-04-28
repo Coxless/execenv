@@ -91,6 +91,10 @@ sops --encrypt --input-type dotenv --output-type dotenv .env > .env.enc
 - **現状は sops のみ対応（MVP）。** Vault、AWS Secrets Manager などのプロバイダーは未実装です。
 - **`PR_SET_DUMPABLE` は Linux 専用。** macOS/BSD ではこの保護は適用されません。
 
+## ガイド
+
+- [Next.js プロジェクトでの手動テスト手順](docs/manual_test_nextjs.ja.md)
+
 ## 開発
 
 ```bash

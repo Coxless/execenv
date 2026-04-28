@@ -101,6 +101,10 @@ secret manager) and commit only the `.env.enc`.
 - **Linux-only `PR_SET_DUMPABLE`.** The prctl call is silently skipped on
   macOS/BSD.
 
+## Guides
+
+- [Manual test with Next.js (ja)](docs/manual_test_nextjs.ja.md)
+
 ## Development
 
 ```bash
