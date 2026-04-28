@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::ffi::{CStr, CString};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use nix::unistd::execvpe;
 use zeroize::Zeroizing;
 

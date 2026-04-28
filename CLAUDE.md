@@ -55,12 +55,14 @@ Key crates: `clap` (args), `anyhow` (errors), `dotenvy`, `serde_json`, `nix` (ex
 
 ## Implementation Status
 
-The project is pre-code (planning phase). Implementation follows these steps:
+MVP complete. Steps 1–7 of `IMPLEMENTATION_PLAN.md` are merged.
 
-1. Project init (`Cargo.toml`, `src/main.rs`)
-2. CLI arg parsing with `clap`
-3. SOPS Provider
-4. dotenv / JSON parsers
-5. `execve` Executor — **MVP complete at this step**
-6. Security hardening (`zeroize`, `PR_SET_DUMPABLE`)
-7. Integration tests + `README.md`
+Source map:
+- `src/main.rs` — entrypoint, `harden_process()` (`PR_SET_DUMPABLE`)
+- `src/cli.rs` — clap definitions
+- `src/provider.rs` — `Provider` trait + `SopsProvider`
+- `src/parser.rs` — dotenv + flat-JSON parsers
+- `src/executor.rs` — `execvpe` with zeroized envp buffers
+- `tests/dumpable.rs` — single-test binary (taints process state via prctl)
+- `tests/integration_test.rs` — E2E via `assert_cmd` + `tempfile`
+- `tests/helpers/` — fixture scaffolding (per-run age key, sops-encrypted fixture)

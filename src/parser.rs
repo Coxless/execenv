@@ -26,7 +26,10 @@ pub fn parse_dotenv(input: &str) -> Result<HashMap<String, Zeroizing<String>>> {
 pub fn parse_json(input: &str) -> Result<HashMap<String, Zeroizing<String>>> {
     let raw: HashMap<String, String> = serde_json::from_str(input)
         .context("failed to parse json (only flat string values are supported)")?;
-    Ok(raw.into_iter().map(|(k, v)| (k, Zeroizing::new(v))).collect())
+    Ok(raw
+        .into_iter()
+        .map(|(k, v)| (k, Zeroizing::new(v)))
+        .collect())
 }
 
 #[cfg(test)]
