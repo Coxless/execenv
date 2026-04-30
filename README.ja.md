@@ -90,11 +90,44 @@ sops --encrypt --input-type dotenv --output-type dotenv .env > .env.enc
 
 > **注意:** `PR_SET_DUMPABLE` は `execve` をまたぐとリセットされます。ターゲットプロセスは OS のデフォルト設定で起動するため、root ユーザーによる ptrace は可能です。
 
+## AWS Secrets Manager
+
+### 前提条件
+
+- AWS クレデンシャルが解決できる状態であること（環境変数 / `~/.aws/credentials` / IAM ロール）。
+- 対象シークレットへの `secretsmanager:GetSecretValue` 権限が必要。
+
+### 使い方
+
+```bash
+# JSON シークレット（デフォルト形式）
+execenv --provider aws-secrets-manager --secret-id prod/myapp/env -- node server.js
+
+# ARN で指定
+execenv --provider aws-secrets-manager \
+  --secret-id arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:prod/myapp/env-XXXXXX \
+  -- ./bin/server
+
+# リージョンを明示
+execenv --provider aws-secrets-manager \
+  --secret-id prod/myapp/env \
+  --aws-region ap-northeast-1 \
+  -- ./bin/server
+
+# dotenv 形式のシークレット
+execenv --provider aws-secrets-manager \
+  --secret-id prod/myapp/dotenv \
+  --format dotenv \
+  -- ./bin/server
+```
+
+シークレット値はデフォルトで **フラット JSON**（`--format json`）として解釈されます。
+dotenv 形式のシークレット文字列を使う場合は `--format dotenv` を指定してください。
+
 ## 制限事項
 
 - **PATH は引き継がれません。** execenv は暗号化ファイルの変数のみを注入します。ターゲットコマンドが PATH を必要とする場合は、`.env` に `PATH=/usr/bin:/bin:…` を含めてください。
 - **フラットな文字列マップのみ対応。** ネストした JSON オブジェクトや配列はサポートしていません。すべての値は文字列である必要があります。
-- **現状は sops のみ対応（MVP）。** Vault、AWS Secrets Manager などのプロバイダーは未実装です。
 - **`PR_SET_DUMPABLE` は Linux 専用。** macOS/BSD ではこの保護は適用されません。
 
 ## ガイド

@@ -96,14 +96,46 @@ secret manager) and commit only the `.env.enc`.
 > **Caveat:** `PR_SET_DUMPABLE` is reset across the `execve` boundary. The
 > target process starts with the OS default and is ptrace-able by root.
 
+## AWS Secrets Manager
+
+### Prerequisites
+
+- AWS credentials must be resolvable (environment variables, `~/.aws/credentials`, or IAM role).
+- The identity must have `secretsmanager:GetSecretValue` permission on the target secret.
+
+### Usage
+
+```bash
+# JSON secret (default format)
+execenv --provider aws-secrets-manager --secret-id prod/myapp/env -- node server.js
+
+# Specify by ARN
+execenv --provider aws-secrets-manager \
+  --secret-id arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:prod/myapp/env-XXXXXX \
+  -- ./bin/server
+
+# Explicit region
+execenv --provider aws-secrets-manager \
+  --secret-id prod/myapp/env \
+  --aws-region ap-northeast-1 \
+  -- ./bin/server
+
+# Plain-text / dotenv-format secret
+execenv --provider aws-secrets-manager \
+  --secret-id prod/myapp/dotenv \
+  --format dotenv \
+  -- ./bin/server
+```
+
+The secret value is treated as **flat JSON** by default (`--format json`).
+Pass `--format dotenv` to parse a dotenv-format secret string instead.
+
 ## Limitations
 
 - **PATH is not propagated.** execenv injects only the variables from the
   encrypted file. Include `PATH=/usr/bin:/bin:…` in your `.env` if needed.
 - **Flat maps only.** Nested JSON objects and arrays are not supported; all
   values must be strings.
-- **sops only (MVP).** Additional providers (Vault, AWS Secrets Manager, etc.)
-  are not yet implemented.
 - **Linux-only `PR_SET_DUMPABLE`.** The prctl call is silently skipped on
   macOS/BSD.
 
