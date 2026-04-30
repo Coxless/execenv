@@ -24,9 +24,15 @@ pub struct Cli {
     #[arg(long)]
     pub clean_env: bool,
 
-    /// AWS Secrets Manager secret ID (ARN or name); required for --provider aws-secrets-manager
-    #[arg(long, required_if_eq("provider", "aws-secrets-manager"))]
+    /// AWS Secrets Manager secret ID (ARN or name).
+    /// Use multiple times or combine with --secrets-file to load several secrets.
+    #[arg(long)]
     pub secret_id: Option<String>,
+
+    /// Path to a file listing AWS Secrets Manager secret IDs, one per line.
+    /// Lines beginning with # and blank lines are ignored.
+    #[arg(long)]
+    pub secrets_file: Option<PathBuf>,
 
     /// AWS region override (default: SDK environment resolution)
     #[arg(long)]
